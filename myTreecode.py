@@ -177,10 +177,10 @@ def evolve(galaxy, tstop, dt, dtout, eps, theta=1, orbit_indexes=None):
 
     if orbit_indexes:
         galaxy.orbits = [[galaxy.system[0][i].x] for i in orbit_indexes]
-        galaxy.t_orbits = [0]
+        galaxy.t_orbits = []
     
-    frame = galaxy.system[0]
-    t = galaxy.t[0]
+    frame = galaxy.system[-1]
+    t = galaxy.t[-1]
 
     with tqdm(total=tstop, desc="Evolving system") as pbar:
         while t < tstop:
@@ -219,6 +219,8 @@ def evolve(galaxy, tstop, dt, dtout, eps, theta=1, orbit_indexes=None):
             t += dt 
     
             pbar.update(dt)
+            
+            
             
             
 
