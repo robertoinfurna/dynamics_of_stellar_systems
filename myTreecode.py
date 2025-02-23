@@ -179,12 +179,12 @@ def evolve(galaxy, tstop, dt, dtout, eps, theta=1, orbit_indexes=None):
         galaxy.orbits = [[galaxy.system[0][i].x] for i in orbit_indexes]
         galaxy.t_orbits = []
     
-    frame = galaxy.system[-1]
+    frame = deepcopy(galaxy.system[-1]) 
     t = galaxy.t[-1]
 
     with tqdm(total=tstop, desc="Evolving system") as pbar:
         while t < tstop:
-
+        
             tree = Tree(frame)  # build the tree at each interaction
 
             for i,star in enumerate(frame):    # Cycle over all N stars
