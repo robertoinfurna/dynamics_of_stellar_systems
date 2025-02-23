@@ -115,6 +115,7 @@ def show_animation(galaxy, r_max, speed=1, marker_size = 0.2, time_conversion_fa
 from sympy import sin, cos, pi
 from matplotlib import cm
 import matplotlib.colors as mcolors
+
 def sky_projection(
     galaxy,
     time=0,
@@ -123,13 +124,15 @@ def sky_projection(
     alpha=0,            # rotation angle in the plane of the sky in degrees
     gamma=0,            # position angle of the line of nodes in degrees
     distance=1000,      # distance to the galaxy in parsecs
-    angular_resolution=1,   # angular resolution in arcseconds
-    FOV=1e3,                # field of view in arcseconds
+    angular_resolution=10,   # angular resolution in arcseconds
+    FOV=60,                # field of view in arcmin
     sensitivity=1e-17,      # sensitivity limit in erg/s/cm^2/arcsec^2 (e.g., HST sensitivity)
     saturation=1e-10,       # saturation limit in erg/s/cm^2/arcsec^2
+    scale='linear',
+    color_scale_inf=1e-17, # can be set manually. By default to sensitivity
+    color_scale_sup=1e-10, # can be set manually. By default to saturation
     exp_time=900,           # exposure time in seconds
     spectral_resolution=2000, # spectral resolution (dimensionless)
-    mass_light_ratio = 1
     ):
  
     if time > galaxy.t[-1]: time=galaxy.t[-1] 
@@ -151,7 +154,7 @@ def sky_projection(
         v_LOS.append(np.dot(star.v,LOS))     
     
     # bins
-    distance_to_angular_size = 206265 / distance    # converts distances in angular separation in the sky, in arcsec
+    distance_to_angular_size = 3437.75 / distance    # converts distances in angular separation in the sky, in arcmin
     r_max = FOV/2 / distance_to_angular_size
     dr = angular_resolution / distance_to_angular_size
     print(f"R covered by FOV is {r_max:.2f} pc, dr is {dr:.2f} pc")
@@ -183,19 +186,24 @@ def sky_projection(
     star_sky_y = np.array(star_sky_y) * distance_to_angular_size
     
     # limits
-    
+    mass_light_ratio = 1
     L_sun = 1e33 # erg / s luminosity of sun (in some band)
     L_star = L_sun * galaxy.m / mass_light_ratio # erg / s (mass light ratio in M_sun/L_sun, adimensional)
     distance_cm = distance / 3.24078e-19  # distance in cm
     flux_star = L_star / (4*np.pi * distance_cm**2) # erg / s / cm^2
-    SB_star = flux_star / (angular_resolution**2) # in cgs
+    SB_star = flux_star / (angular_resolution**2) # erg / s / cm^2 / arcmin^2
     
     n_min = sensitivity / SB_star # minimum number of stars (of 1 solar mass) that must fall in a bin to give a non zero signal
     n_max = saturation / SB_star
 
-    
     print("Signal above threshold if more than %.1f stars/bin" %(n_min))
     print("Saturation point when > %1f stars/bin" %(n_max))
+
+    if color_scale_inf > sensitivity:
+        n_min = color_scale_inf  / SB_star
+    if color_scale_sup < saturation:
+        n_max = color_scale_sup  / SB_star
+
     
     velocity_conversion = 15.248335 # converts velocity from internal units to km/s
     deltav_min = 2.99792458 * 10**5 / velocity_conversion / spectral_resolution 
@@ -203,28 +211,36 @@ def sky_projection(
     print(f"Minimum velocity detectable with spectral resolution {spectral_resolution:.1f} is {deltav_min*velocity_conversion:.2f} km/s")
     
 
-
     # plots 
 
     fig, axes = plt.subplots(1, 3, figsize=(12,4),layout="constrained") 
+    fig.suptitle(f"Angular resolution = {angular_resolution:.2f} arcsec, FOV = {FOV:.2f} arcmin, sensitivity = {sensitivity:.2e} erg/s/cm^2/arcsec^2 \n"
+    	f"saturation point = {saturation:.2e} erg/s/cm^2/arcsec^2, spectral resolution = {spectral_resolution:.0f}, exposure time = {exp_time:.2f} s")
+
+    
     for i in range(3):
         axes[i].set_aspect('equal') 
-        axes[i].set_xlabel("ra ['']") 
-        axes[i].set_ylabel("dec ['']")
+        axes[i].set_xlabel("ra [arcmin]") 
+        axes[i].set_ylabel("dec [arcmin]")
   
     
     # surface brightness
     
     cmap = cm.rainbow
     cmap.set_under('w')  
-    S = axes[0].hist2d(star_sky_x, star_sky_y, bins=bins,cmap=cmap,norm=mcolors.LogNorm(vmin=n_min,vmax=n_max)) #(vmin=n_surface_bright_min,vmax=n_surface_bright_max)) 
+    if scale == 'linear':
+        norm = mcolors.Normalize(vmin = n_min,vmax = n_max)
+    if scale == 'log':
+        norm=mcolors.LogNorm(vmin=n_min,vmax=n_max)
+    S = axes[0].hist2d(star_sky_x, star_sky_y, bins=bins,cmap=cmap,norm=norm) 
     N = S[0]  
-    
-    cbar_sb = fig.colorbar(S[3], ax=axes[0], location='bottom', label="surface brightness (r band) [erg/s/cm^2/arcsec$^2$]" ) #ticks=SB_ticks
-    #cbar_sb.set_ticklabels(["{:.1e}".format(i*surface_brightness_conv) for i in SB_ticks]) 
-        
-    
-    # mean velocity
+
+    cbar_sb = fig.colorbar(S[3], ax=axes[0], location='bottom', label="surface brightness [erg/s/cm^2/arcsec$^2$]") 
+    cbar_sb.set_ticks(np.linspace(n_min, n_max, 5))
+    tick_labels = [f'{SB_star * n:.2e}' for n in np.linspace(n_min, n_max, 5)]
+    cbar_sb.set_ticklabels(tick_labels)
+    for label in cbar_sb.ax.get_xticklabels():
+        label.set_rotation(90)
     
     masked_LOS_v_mean = np.where((N < n_min) | (np.abs(LOS_v_mean) < deltav_min), np.nan, LOS_v_mean) * velocity_conversion            #delta_v_min
     cmap = cm.bwr 
@@ -240,12 +256,10 @@ def sky_projection(
     cmap.set_bad(color='white')  
     
     V_disp = axes[2].imshow(masked_LOS_v_dispersion, interpolation='none', extent=[-FOV/2, FOV/2,-FOV/2, FOV/2], origin='lower',cmap=cmap,vmin=deltav_min, vmax = 100*deltav_min)  
-    cbar_V_disp = fig.colorbar(V_disp, ax=axes[2], location='bottom', label="$\sigma_\parallel [km/s]$")  #ticks = sigma_LOS_ticks, 
-    #cbar_V_disp.set_ticklabels(["{:.1f}".format(i*velocity_conv) for i in sigma_LOS_ticks])     
+    cbar_V_disp = fig.colorbar(V_disp, ax=axes[2], location='bottom', label="$\sigma_\parallel [km/s]$")    
     
     
-    
-    
+ 
  
     
     
