@@ -177,6 +177,43 @@ class Hernquist:
 
 
 
+class Homogeneous_Sphere:
+    
+    def __init__(self,N,rho,m=1,Omega=0):
+        self.N = int(N) 
+        self.m = m
+        self.M = self.N * self.m
+        self.rho = rho
+        self.R = (3 * self.M / (4*np.pi*self.rho))**(1/3)
+        self.Omega = Omega # angular velocity of the solid sphere
+
+        self.free_fall_time = np.sqrt(3*np.pi/(32*self.rho))
+ 
+        print(f"Homogeneous sphere of {self.N} stars and total mass {self.M:.2f} solar masses, density is {self.rho:.2f} solar masses/pc^3. Radius is {self.R:.2f} pc."
+              f"Free fall time is {self.free_fall_time:.1e} in internal units { self.free_fall_time*time_conversion_factor:.1e} Myrs.")
+
+        # initialize system
+        
+        self.t = [0]
+        self.system = []
+
+        initial_conditions = []
+        
+        for i in range(self.N):
+            
+            u = random.uniform(0,1)
+            v = random.uniform(0,1)
+            w = random.uniform(0,1)
+            r = (3*self.M * u / (4*np.pi*self.rho))**(1/3)
+            theta = np.arccos(1-2*v) 
+            phi = 2*np.pi*w
+            
+            x = np.array([r*np.sin(theta)*np.cos(phi),r*np.sin(theta)*np.sin(phi),r*np.cos(theta)])
+            v = np.array([0,0,0])  # points initially with zero radial velocity, tangential velocity given by angular momentum (solid sphere)
+            
+            initial_conditions.append(Star(self.m, x, v))
+            
+        self.system.append(np.array(initial_conditions))
 
 
 

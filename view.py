@@ -3,7 +3,7 @@ import numpy as np
 from matplotlib import animation
 from mpl_toolkits.mplot3d import Axes3D
 from IPython.display import HTML
-
+import os
 
 
 def view(galaxy, r_max, t=[0], figsize=(20, 7), time_conversion_factor=14.910128):
@@ -52,10 +52,8 @@ def view(galaxy, r_max, t=[0], figsize=(20, 7), time_conversion_factor=14.910128
     
     
 
-def show_animation(galaxy, r_max, speed=1, marker_size = 0.2, time_conversion_factor=14.910128, filename=None):    
-    speed = int(speed)
-    while speed > len(galaxy.system): 
-        speed -= 1
+def show_animation(galaxy, r_max, time_conversion_factor=14.910128, speed = 600, marker_size = 0.2, filename=None):    
+
 
     fig = plt.figure(figsize=(15, 15))
     ax = fig.add_subplot(projection='3d')
@@ -80,13 +78,13 @@ def show_animation(galaxy, r_max, speed=1, marker_size = 0.2, time_conversion_fa
         orbit_end_markers = [ax.scatter([], [], [], s=50) for _ in galaxy.orbits]  # Markers at end of orbits
                     
     def animate(frame): 
-        t = galaxy.t[frame * speed]
+        t = galaxy.t[frame]
         plt.title("t = %.2f i.u. (%.2f Myr)" % (t, t * time_conversion_factor), fontsize=20) 
 
         for i in range(galaxy.N): 
-            star_points[i]._offsets3d = (galaxy.system[frame * speed][i].x[0:1], 
-                                         galaxy.system[frame * speed][i].x[1:2], 
-                                         galaxy.system[frame * speed][i].x[2:])
+            star_points[i]._offsets3d = (galaxy.system[frame][i].x[0:1], 
+                                         galaxy.system[frame][i].x[1:2], 
+                                         galaxy.system[frame][i].x[2:])
 
         if hasattr(galaxy, 'orbits'):
             for i in range(len(galaxy.orbits)):
@@ -104,11 +102,14 @@ def show_animation(galaxy, r_max, speed=1, marker_size = 0.2, time_conversion_fa
                     orbit_end_markers[i].set_sizes([50])  
                     
                     
-    anim = animation.FuncAnimation(fig, animate, frames=int(len(galaxy.system) / speed) - 1, interval=200)
+    anim = animation.FuncAnimation(fig, animate, frames=len(galaxy.system) - 1, interval=speed)
     display(HTML(anim.to_jshtml()))
 
     if filename is not None:
-        anim.save(filename, writer='ffmpeg', fps=30)
+        if os.path.exists(filename):
+            os.remove(filename)
+        anim.save(filename, writer='pillow')  # save as gif
+        #anim.save(filename, writer='ffmpeg', fps=30)  #  save as HTML5 video
 
     plt.close()
     
