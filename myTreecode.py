@@ -176,6 +176,7 @@ def evolve(galaxy, tstop, dt, dtout, eps, theta=1, orbit_indexes=None):
 
 
     if orbit_indexes:
+        galaxy.orbit_indexes = orbit_indexes
         galaxy.orbits = [[galaxy.system[0][i].x] for i in orbit_indexes]
         galaxy.t_orbits = []
     
